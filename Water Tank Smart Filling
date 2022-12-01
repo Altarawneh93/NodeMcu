@@ -1,0 +1,93 @@
+#include<ESP8266WiFi.h>
+#include<WiFiClient.h>
+#include<ESP8266HTTPClient.h>
+#include <ArduinoJson.h>
+
+String URL="http://api.thingspeak.com/update?api_key=HJ9V255974QWD9H7&field1=0";
+//Notes
+//We have two Tanks (Tank 1 at the top of building and Tank 2 at the basement of the buildig and we need to feed Tank 1 from the basement tank when we cosume the wster from the Upper Tank 1)
+//Tank 1 is the upper which will be feeded by the bottom tank when it's level reach 50% or less.
+//Tank 1 hight is 2 meters but here we will consider it as 20 cm (each 1 meter equal 10 cm for scaling purpose)
+//Tank 2 have the same hight with Tank 1 and when the level above 90% inside Tank 2 and the level in Tank 1 is less than 50% the pump will work and start feeding Tank 1 (The Upper).
+// We represent pump as a Led
+
+
+const int trigPin1 = D0;  //D0 level of Tank 1
+const int echoPin1 = D1;  //D1 level of Tank 1
+const int trigPin2 = D2;  //D2 level of Tank 2
+const int echoPin2 = D3;  //D3 level of Tank 2clude "secrets.h"
+const int Led = D4;       //D4 The Led represent the pump that supply Tank 1
+const int Relay = D5;     //D5 Relay to connect or cut the circuit between Tank 1 & Tank 2
+int duration1 = 0;      
+int distance1 = 0;       // The distance from the ultrasonic to the surface of water in Tank 1
+int duration2 = 0;       
+int distance2 = 0;        // The distance from the ultrasonic to the surface of water in Tank 2
+
+void setup() 
+{
+  Serial.begin(9600);
+  WiFi.disconnect();
+  delay(2000);
+  Serial.print("Start connection");
+  WiFi.begin("Dlink","");
+  while((!(WiFi.status()== WL_CONNECTED))){
+      delay(200);
+      Serial.print("..");
+    }
+  Serial.println("Connected");
+  pinMode(trigPin1 , OUTPUT);
+  pinMode(echoPin1 , INPUT);
+  pinMode(trigPin2 , OUTPUT);
+  pinMode(echoPin2 , INPUT);
+  pinMode(Led , OUTPUT);
+  pinMode(Relay , OUTPUT);
+
+}
+
+void loop() 
+{
+  WiFiClient client;
+  HTTPClient http;
+  // Calculating distance for tank 1
+  digitalWrite(trigPin1, LOW);
+  delayMicroseconds(2);
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(trigPin1, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin1, LOW);
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+  duration1 = pulseIn(echoPin1, HIGH);
+  // convert the time into a distance
+  int distance1 = (duration1*0.034)/2;
+  Serial.print("Distance for Tank 1 (cm) :");
+  Serial.println(distance1);
+  // Calculating distance for tank 2
+  digitalWrite(trigPin2, LOW);
+  delayMicroseconds(2);
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(trigPin2, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin2, LOW);  
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+  duration2 = pulseIn(echoPin2, HIGH);  
+  // convert the time into a distance
+  int distance2 = (duration2*0.034)/2;
+  Serial.print("Distance for Tank 2 :");
+  Serial.print (distance2);
+
+  if (distance1>>10 && distance2 << 18 )
+  {
+    digitalWrite(Relay, HIGH);
+  }
+  else if (distance1<<10 || distance2 >> 18 )  
+  {
+    digitalWrite(Relay, LOW);
+  }
+  String newURL=URL+String(distance1)+"&field2="+String(distance2); 
+  http.begin(client,newURL);
+  int responsecode=http.GET();
+  String data=http.getString();
+  Serial.println(data);
+  http.end();
+  delay(15000);
+}
